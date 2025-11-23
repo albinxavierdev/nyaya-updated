@@ -1,0 +1,246 @@
+#!/usr/bin/env python3
+"""
+Hybrid Indexing Script for Nyayantar
+Indexes documents into both nyayantar_legal (InLegalBERT) and nyayantar_general (OpenAI) collections
+"""
+
+import os
+import json
+import logging
+from typing import List, Dict, Any
+import qdrant_client
+from qdrant_client.models import VectorParams, Distance, PointStruct
+from uuid import uuid4
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+def load_legal_documents() -> List[Dict[str, Any]]:
+    """Load legal documents from the JSON file"""
+    legal_data_path = os.getenv("LEGAL_DATA_PATH", "/var/www/legalapp/legal_data/converted/all_legal_documents.json")
+    
+    if not os.path.exists(legal_data_path):
+        raise FileNotFoundError(f"Legal data file not found: {legal_data_path}")
+    
+    with open(legal_data_path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    
+    # Extract documents from the structure
+    documents = []
+    for doc in data:
+        # Handle different document structures
+        if isinstance(doc, dict):
+            text = doc.get('text', doc.get('content', ''))
+            metadata = doc.get('metadata', {})
+            if text:
+                documents.append({
+                    'id': doc.get('id', str(uuid4())),
+                    'text': text,
+                    'metadata': metadata
+                })
+    
+    logger.info(f"✅ Loaded {len(documents)} legal documents")
+    return documents
+
+
+def get_qdrant_client():
+    """Initialize Qdrant client"""
+    QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
+    QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
+    
+    if QDRANT_API_KEY:
+        client = qdrant_client.QdrantClient(
+            url=QDRANT_URL,
+            api_key=QDRANT_API_KEY,
+        )
+    else:
+        client = qdrant_client.QdrantClient(url=QDRANT_URL)
+    
+    return client
+
+
+def create_collections_if_not_exists(client: qdrant_client.QdrantClient):
+    """Create both collections if they don't exist"""
+    
+    # Check and create nyayantar_legal (existing, 768 dims)
+    legal_collections = client.get_collections().collections
+    legal_names = [c.name for c in legal_collections]
+    
+    if "nyayantar_legal" not in legal_names:
+        logger.info("Creating nyayantar_legal collection...")
+        client.create_collection(
+            collection_name="nyayantar_legal",
+            vectors_config=VectorParams(
+                size=768,  # InLegalBERT dimensions
+                distance=Distance.COSINE
+            ),
+        )
+        logger.info("✅ Created nyayantar_legal collection")
+    else:
+        logger.info("✅ nyayantar_legal collection already exists")
+    
+    # Check and create nyayantar_general (new collection)
+    if "nyayantar_general" not in legal_names:
+        # Determine dimension based on available API keys
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+        if openai_api_key:
+            dimension = 1536  # OpenAI text-embedding-3-small
+        else:
+            dimension = 384   # BGE-small fallback
+        
+        logger.info(f"Creating nyayantar_general collection with dimension {dimension}...")
+        client.create_collection(
+            collection_name="nyayantar_general",
+            vectors_config=VectorParams(
+                size=dimension,
+                distance=Distance.COSINE
+            ),
+        )
+        logger.info("✅ Created nyayantar_general collection")
+    else:
+        logger.info("✅ nyayantar_general collection already exists")
+
+
+def index_legal_collection(client: qdrant_client.QdrantClient, documents: List[Dict[str, Any]]):
+    """Index documents into the legal collection using InLegalBERT embeddings"""
+    logger.info("🔄 Indexing documents into nyayantar_legal collection...")
+    
+    try:
+        # Note: For now, using FastEmbed as the legal embedding model
+        # In production, you can switch to InLegalBERT when available
+        from llama_index.embeddings.fastembed import FastEmbedEmbedding
+        
+        # Using BGE for legal documents (or use InLegalBERT if available)
+        embed_model = FastEmbedEmbedding(model_name="BAAI/bge-large-en-v1.5")
+        logger.info("✅ Legal embedding model loaded (using BGE-large)")
+        
+        # Process documents in batches
+        batch_size = 32
+        points = []
+        
+        for i in range(0, len(documents), batch_size):
+            batch = documents[i:i+batch_size]
+            logger.info(f"Processing batch {i//batch_size + 1}/{(len(documents)-1)//batch_size + 1}")
+            
+            # Generate embeddings
+            texts = [doc['text'] for doc in batch]
+            embeddings = [embed_model.get_text_embedding(text) for text in texts]
+            
+            # Create points for Qdrant
+            for doc, embedding in zip(batch, embeddings):
+                point_id = doc.get('id', str(uuid4()))
+                
+                points.append(
+                    PointStruct(
+                        id=point_id,
+                        vector=embedding,
+                        payload={
+                            'text': doc['text'],
+                            'metadata': doc.get('metadata', {})
+                        }
+                    )
+                )
+            
+            # Upload batch
+            client.upsert(
+                collection_name="nyayantar_legal",
+                points=points
+            )
+            points = []
+            logger.info(f"✅ Indexed batch {i//batch_size + 1}")
+        
+        logger.info("✅ Completed indexing into nyayantar_legal collection")
+        
+    except Exception as e:
+        logger.error(f"❌ Error indexing legal collection: {e}")
+        raise
+
+
+def index_general_collection(client: qdrant_client.QdrantClient, documents: List[Dict[str, Any]]):
+    """Index documents into the general collection using OpenAI embeddings"""
+    logger.info("🔄 Indexing documents into nyayantar_general collection...")
+    
+    try:
+        from llama_index.embeddings.openai import OpenAIEmbedding
+        
+        # Initialize OpenAI embedding model
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+        if not openai_api_key:
+            logger.warning("⚠️ OPENAI_API_KEY not found, using FastEmbed fallback")
+            from llama_index.embeddings.fastembed import FastEmbedEmbedding
+            embed_model = FastEmbedEmbedding(model_name="BAAI/bge-small-en-v1.5")
+            logger.info("✅ Using FastEmbed fallback for general embeddings")
+        else:
+            embed_model = OpenAIEmbedding(model="text-embedding-3-small", dimensions=1536)
+            logger.info("✅ OpenAI embedding model loaded")
+        
+        # Process documents in batches
+        batch_size = 32
+        points = []
+        
+        for i in range(0, len(documents), batch_size):
+            batch = documents[i:i+batch_size]
+            logger.info(f"Processing batch {i//batch_size + 1}/{(len(documents)-1)//batch_size + 1}")
+            
+            # Generate embeddings
+            texts = [doc['text'] for doc in batch]
+            embeddings = [embed_model.get_text_embedding(text) for text in texts]
+            
+            # Create points for Qdrant
+            for doc, embedding in zip(batch, embeddings):
+                point_id = doc.get('id', str(uuid4()))
+                
+                points.append(
+                    PointStruct(
+                        id=point_id,
+                        vector=embedding,
+                        payload={
+                            'text': doc['text'],
+                            'metadata': doc.get('metadata', {})
+                        }
+                    )
+                )
+            
+            # Upload batch
+            client.upsert(
+                collection_name="nyayantar_general",
+                points=points
+            )
+            points = []
+            logger.info(f"✅ Indexed batch {i//batch_size + 1}")
+        
+        logger.info("✅ Completed indexing into nyayantar_general collection")
+        
+    except Exception as e:
+        logger.error(f"❌ Error indexing general collection: {e}")
+        raise
+
+
+def main():
+    """Main indexing function"""
+    logger.info("🚀 Starting hybrid indexing process...")
+    
+    # Load documents
+    documents = load_legal_documents()
+    
+    # Initialize Qdrant client
+    client = get_qdrant_client()
+    
+    # Create collections
+    create_collections_if_not_exists(client)
+    
+    # Note: nyayantar_legal collection already exists and is populated
+    # We only need to index into the new nyayantar_general collection
+    logger.info("ℹ️  Skipping nyayantar_legal - already populated with InLegalBERT")
+    
+    # Index into general collection (OpenAI)
+    index_general_collection(client, documents)
+    
+    logger.info("🎉 Hybrid indexing completed successfully!")
+
+
+if __name__ == "__main__":
+    main()
+

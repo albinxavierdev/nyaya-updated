@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+
+# Environment
+.env
+.env.local
+
+# Storage & Data
+storage/
+qdrant_storage/
+output/
+generated_docs/
+uploaded_documents/
+
+# Logs
+*.log
+logs/
+
+# Poetry
+.venv/
+
+# Cache
+.cache/

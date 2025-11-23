@@ -1,0 +1,56 @@
+[tool]
+[tool.poetry]
+name = "app"
+version = "0.1.0"
+description = "⚡ Ship RAG Solutions Quickly"
+authors = [ "Adithya S K <Adithyaskolavi@gmail.com>" ]
+readme = "README.md"
+
+[tool.poetry.scripts]
+generate = "app.api.chat.engine.generate:generate_datasource"
+
+[tool.poetry.dependencies]
+python = ">=3.11,<3.13"
+fastapi = {extras = ["all"], version = "^0.112.2"}
+python-dotenv = "^1.0.0"
+aiostream = "^0.5.2"
+llama-index = "0.10.58"
+cachetools = "^5.3.3"
+pymongo = "^4.8.0"
+motor = "^3.5.1"
+python-jose = "^3.3.0"
+passlib = {extras = ["bcrypt"], version = "^1.7.4"}
+python-multipart = "^0.0.9"
+pydantic = {extras = ["email"], version = "^2.9.0"}
+pydantic-settings = "^2.4.0"
+fastapi-mail = "^1.4.1"
+beanie = "^1.26.0"
+python-decouple = "^3.8"
+boto3 = "^1.35.6"
+openinference-instrumentation = "^0.1.12"
+openinference-instrumentation-llama-index = "^2.2.1"
+openinference-instrumentation-openai = "^0.1.12"
+openinference-semantic-conventions = "^0.1.9"
+opentelemetry-api = "^1.26.0"
+opentelemetry-exporter-otlp = "^1.26.0"
+arize-phoenix = {extras = ["evals"], version = "^4.19.0"}
+llama-index-llms-gemini = ">=0.1.0,<0.2.0"
+llama-index-embeddings-gemini = ">=0.1.0,<0.2.0"
+# sentence-transformers = "^2.2.2"  # Commented out due to disk space
+
+uvicorn = {extras = ["standard"], version = "^0.23.2"}
+llama-index-vector-stores-qdrant = "^0.2.8"
+docx2txt = "^0.8"
+
+llama-index-agent-openai = "^0.2.6"
+
+# Document Generation Dependencies
+python-docx = "^1.1.0"
+openpyxl = "^3.1.2"
+reportlab = "^4.0.4"
+redis = "^5.0.0"
+llama-index-embeddings-fastembed = "0.1.7"
+
+[build-system]
+requires = [ "poetry-core" ]
+build-backend = "poetry.core.masonry.api"

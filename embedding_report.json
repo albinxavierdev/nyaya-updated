@@ -1,0 +1,23 @@
+{
+  "timestamp": "2025-10-11T16:21:22.851299",
+  "statistics": {
+    "total_documents": 1960,
+    "processed": 1960,
+    "failed": 0,
+    "start_time": "2025-10-11 16:08:05.795262",
+    "end_time": "2025-10-11 16:21:22.851250",
+    "batches": 62,
+    "errors": []
+  },
+  "configuration": {
+    "qdrant_url": "http://localhost:6333",
+    "collection_name": "nyayantar_legal",
+    "embedding_model": "law-ai/InLegalBERT",
+    "embedding_dim": 768,
+    "legal_data_path": "/var/www/legalapp/legal_data/converted/all_legal_documents.json",
+    "batch_size": 32,
+    "distance_metric": "Cosine"
+  },
+  "duration_seconds": 797.055988,
+  "success_rate": 100.0
+}

@@ -1,0 +1,121 @@
+# Nyayantar AI - .gitignore
+
+# ===========================================
+# ENVIRONMENT & SECRETS
+# ===========================================
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+secrets/
+
+# ===========================================
+# PYTHON BACKEND
+# ===========================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Poetry
+poetry.lock
+
+# ===========================================
+# NODE.JS FRONTEND
+# ===========================================
+node_modules/
+.next/
+out/
+.vercel/
+*.tsbuildinfo
+next-env.d.ts
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+
+# ===========================================
+# DATABASES & STORAGE
+# ===========================================
+
+# MongoDB data
+mongodb_data/
+*.db
+
+# Qdrant storage
+qdrant_storage/
+storage/
+*.faiss
+*.pkl
+
+# ===========================================
+# LOGS & CACHE
+# ===========================================
+*.log
+logs/
+.cache/
+cache/
+tmp/
+temp/
+*.tmp
+*.bak
+*.backup
+
+# ===========================================
+# GENERATED FILES
+# ===========================================
+generated_docs/
+static/generated_docs/
+output/
+uploaded_documents/
+user_uploads/
+
+# ===========================================
+# OPERATING SYSTEM
+# ===========================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.directory
+.Trash-*
+
+# ===========================================
+# IDE & EDITORS
+# ===========================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*.un~
+
+# ===========================================
+# KEEP THESE FILES
+# ===========================================
+!legal_data/
+!.env.example
+!.gitignore
+backend/.env*
+frontend/.env*
+backend/.env*
+frontend/.env*

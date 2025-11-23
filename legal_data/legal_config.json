@@ -1,0 +1,20 @@
+{
+  "legal_knowledge_base": {
+    "enabled": true,
+    "data_path": "legal_data/converted",
+    "raw_data_path": "legal_data/raw",
+    "include_acts": [
+      "IPC",
+      "CRPC",
+      "CPC",
+      "IEA",
+      "IDA",
+      "HMA",
+      "NIA"
+    ],
+    "embedding_model": "BAAI/bge-small-en-v1.5",
+    "embedding_dimension": 384,
+    "search_type": "qdrant",
+    "total_documents": 1960
+  }
+}

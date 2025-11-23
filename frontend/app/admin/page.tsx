@@ -1,0 +1,105 @@
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import Image from 'next/image';
+import { useAdminAuth } from './AdminAuthProvider';
+import { useAuth } from '@/app/authProvider';
+import Loading from '@/components/loading';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import UsersManagement from '@/app/admin/UsersManagement';
+import DataIngestion from '@/app/admin/DataIngestion';
+import RAGConfiguration from '@/app/admin/RAGConfiguration';
+import ProviderManagement from '@/app/admin/ProviderManagement';
+import ProviderConfiguration from '@/app/admin/ProviderConfiguration';
+
+export default function AdminPage() {
+  const { isAdminAuthenticated, adminData } = useAdminAuth();
+  const { isAuthenticated } = useAuth();
+
+  if (!isAdminAuthenticated) {
+    return <Loading />;
+  }
+
+  if (!isAuthenticated) return <div>Unauthorized</div>;
+
+  return (
+    <div className="container mx-auto px-4 py-8">
+      <div className="flex-col md:flex md:flex-row justify-between items-center mb-6 ">
+        <div className="flex items-center space-x-3 mb-4 md:mb-0">
+          <Image
+            src="/logo-black.png"
+            alt="Nyayantar AI Logo"
+            width={40}
+            height={40}
+            className="h-10 w-10"
+          />
+          <div>
+            <h1 className="text-2xl font-bold py-2">Nyayantar AI Admin</h1>
+            <p className="text-sm text-muted-foreground">Your Legal Guide, Powered by AI</p>
+          </div>
+        </div>
+
+        {adminData && Object.keys(adminData).length > 0 && (
+          <Card className="flex items-center space-x-4 p-4">
+            <Avatar className="h-10 w-10">
+              <AvatarFallback>
+                {adminData.firstName?.[0]}
+                {adminData.lastName?.[0]}
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              {(adminData.firstName || adminData.lastName) && (
+                <p className="font-medium">
+                  {`${adminData.firstName || ''} ${
+                    adminData.lastName || ''
+                  }`.trim()}
+                </p>
+              )}
+              {adminData.email && (
+                <CardDescription>{adminData.email}</CardDescription>
+              )}
+              {adminData.role && (
+                <p className="text-sm text-muted-foreground">
+                  Role: {adminData.role}
+                </p>
+              )}
+            </div>
+          </Card>
+        )}
+      </div>
+
+      <Tabs defaultValue="users" className="w-full">
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="users">Users Tracking</TabsTrigger>
+          <TabsTrigger value="ingestion">Data Ingestion</TabsTrigger>
+          <TabsTrigger value="rag">AI Configuration</TabsTrigger>
+          <TabsTrigger value="providers">AI Providers</TabsTrigger>
+          <TabsTrigger value="provider-config">Provider Config</TabsTrigger>
+        </TabsList>
+        <TabsContent value="users">
+          <UsersManagement adminEmail={adminData?.email} />
+        </TabsContent>
+        <TabsContent value="ingestion">
+          <DataIngestion />
+        </TabsContent>
+        <TabsContent value="rag">
+          <RAGConfiguration />
+        </TabsContent>
+        <TabsContent value="providers">
+          <ProviderManagement />
+        </TabsContent>
+        <TabsContent value="provider-config">
+          <ProviderConfiguration />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
