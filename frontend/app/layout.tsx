@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { Roboto } from 'next/font/google';
 import { AuthProvider } from '@/app/authProvider';
 import { ConversationProvider } from '@/app/ConversationContext';
+import { QueryLimitProvider } from '@/app/QueryLimitContext';
 import { Analytics } from '@/components/analytics';
 import { siteConfig } from '@/config/site';
 import { ThemeProvider } from '@/components/theme-provider';
@@ -68,23 +69,25 @@ export default function RootLayout({
       </head>
       <body className={`${roboto.className} flex flex-col h-screen`} suppressHydrationWarning>
         <ClientOnly>
-          <ThemeProvider 
-            attribute="class" 
-            defaultTheme="light" 
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="light"
             enableSystem
             disableTransitionOnChange
           >
             <AuthProvider>
-              <ConversationProvider>
-                <Toaster position="top-right" />
-                <Header />
-                <div className="flex flex-1 overflow-y-hidden">
-                  <Sidebar />
-                  <main className="w-full h-full overflow-y-hidden">
-                    {children}
-                  </main>
-                </div>
-              </ConversationProvider>
+              <QueryLimitProvider>
+                <ConversationProvider>
+                  <Toaster position="top-right" />
+                  <Header />
+                  <div className="flex flex-1 overflow-y-hidden">
+                    <Sidebar />
+                    <main className="w-full h-full overflow-y-hidden">
+                      {children}
+                    </main>
+                  </div>
+                </ConversationProvider>
+              </QueryLimitProvider>
             </AuthProvider>
           </ThemeProvider>
         </ClientOnly>

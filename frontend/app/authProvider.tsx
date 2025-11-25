@@ -29,7 +29,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const authRoutes = ['/signin', '/signup', '/resetPassword', '/verifiedEmail'];
-const protectedRoutes = ['/chat', '/profile'];
+const protectedRoutes = ['/profile'];
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -59,7 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           },
         }
       );
-      
+
       const { access_token, refresh_token } = response.data;
       setAccessToken(access_token);
       setRefreshToken(refresh_token);
@@ -68,7 +68,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return access_token;
     } catch (error: any) {
       console.error('Error refreshing token:', error);
-      
+
       // If refresh token is invalid or expired, logout
       if (error.response?.status === 401 || error.response?.status === 403) {
         logout();
@@ -147,7 +147,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setIsAdmin(userRole === 'admin');
         } catch (error: any) {
           console.error('Failed to fetch user role:', error);
-          
+
           // If it's a 401 or 403 error, try to refresh the token
           if (error.response?.status === 401 || error.response?.status === 403) {
             try {
@@ -161,7 +161,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     'Authorization': `Bearer ${newAccessToken}`,
                   },
                 });
-                
+
                 const retryResponse = await retryAxiosInstance.get('/api/auth/me');
                 const userRole = retryResponse.data.role || 'user';
                 setRole(userRole);
@@ -228,14 +228,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           'Authorization': `Bearer ${accessToken}`,
         },
       });
-      
+
       const response = await authAxiosInstance.get('/api/auth/me');
       const userRole = response.data.role || 'user';
       setRole(userRole);
       setIsAdmin(userRole === 'admin');
     } catch (error: any) {
       console.error('Failed to fetch user role:', error);
-      
+
       // If it's a 401 or 403 error, try to refresh the token
       if (error.response?.status === 401 || error.response?.status === 403) {
         try {
@@ -248,7 +248,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 'Authorization': `Bearer ${newAccessToken}`,
               },
             });
-            
+
             const retryResponse = await retryAxiosInstance.get('/api/auth/me');
             const userRole = retryResponse.data.role || 'user';
             setRole(userRole);
@@ -288,7 +288,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLastName(null);
     setRole(null);
     setIsAdmin(false);
-    
+
     // Redirect to signin
     router.push('/signin');
   };

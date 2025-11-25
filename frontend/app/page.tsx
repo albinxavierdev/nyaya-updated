@@ -141,7 +141,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { PlaceholdersAndVanishInput } from '@/components/ui/placeholders-and-vanish-input';
 import { useRouter } from 'next/navigation';
@@ -153,11 +153,32 @@ function HomeContent() {
   const { isAuthenticated } = useAuth();
   const router = useRouter();
   const [isAnimating, setIsAnimating] = useState(false);
+  const [starterQuestions, setStarterQuestions] = useState<string[]>([
+    'What is Section 420 IPC?',
+    'How to file a bail application?',
+    'What are my rights during arrest?',
+    'Explain dowry law in India'
+  ]);
 
-  const placeholders = [
-    'Hello there how are you doing',
-    'Tell me more about ...',
-  ];
+  // Fetch starter questions from backend config
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const backendUrl = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:8000';
+        const response = await fetch(`${backendUrl}/api/chat/config`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.starterQuestions && data.starterQuestions.length > 0) {
+            setStarterQuestions(data.starterQuestions);
+          }
+        }
+      } catch (error) {
+        console.log('Using default starter questions');
+      }
+    };
+
+    fetchConfig();
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputValue(e.target.value);
@@ -168,18 +189,14 @@ function HomeContent() {
     setIsAnimating(true);
 
     setTimeout(() => {
-      if (isAuthenticated) {
-        router.push(`/chat?query=${encodeURIComponent(inputValue)}`);
-      } else {
-        router.push(`/signin`);
-      }
+      router.push(`/chat?query=${encodeURIComponent(inputValue)}`);
     }, 1500);
   };
 
   return (
     <div className="h-full flex flex-col justify-center items-center relative">
       <Ripple />
-      
+
       {/* Logo Section */}
       <div className="z-10 mb-8 flex flex-col items-center">
         <Image
@@ -197,14 +214,13 @@ function HomeContent() {
           Your Legal Guide, Powered by AI
         </p>
       </div>
-      
+
       <div
-        className={`w-full md:w-[70%] p-4 transition-all duration-1500 ${
-          isAnimating ? 'md:translate-y-24 lg:md:translate-y-36' : ''
-        }`}
+        className={`w-full md:w-[70%] p-4 transition-all duration-1500 ${isAnimating ? 'md:translate-y-24 lg:md:translate-y-36' : ''
+          }`}
       >
         <PlaceholdersAndVanishInput
-          placeholders={placeholders}
+          placeholders={starterQuestions}
           onChange={handleChange}
           onSubmit={onSubmit}
           value={inputValue}

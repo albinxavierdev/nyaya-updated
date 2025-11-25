@@ -41,7 +41,7 @@ class VercelStreamResponse(StreamingResponse):
             content = VercelStreamResponse.content_generator(
                 request, event_handler, response, chat_data
             )
-        super().__init__(content=content)
+        super().__init__(content=content, media_type="text/plain; charset=utf-8")
 
     @classmethod
     async def content_generator(

@@ -8,6 +8,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import { useConversationContext } from '@/app/ConversationContext';
 import { useAuth } from '@/app/authProvider';
+import { useQueryLimitContext } from '@/app/QueryLimitContext';
 import Loading from '@/components/loading';
 import { toast } from 'sonner';
 import axios from 'axios';
@@ -16,16 +17,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { FileText, Download, CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import { SignupPromptDialog } from '@/components/ui/SignupPromptDialog';
+import { QueryCounter } from '@/components/ui/QueryCounter';
 
 function ChatContent() {
-  const { accessToken, axiosInstance } = useAuth();
+  const { accessToken, axiosInstance, isAuthenticated } = useAuth();
+  const queryLimitContext = useQueryLimitContext();
   const { backend, starterQuestions } = useClientConfig();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [conversationId, setConversationId] = useState<string | null>(null);
   const { conversationList, setConversationList } = useConversationContext();
   const [isClient, setIsClient] = useState(false);
-  
+  const [showSignupDialog, setShowSignupDialog] = useState(false);
+
 
   useEffect(() => {
     setIsClient(true);
@@ -48,15 +53,26 @@ function ChatContent() {
   }, [conversationId]);
 
   const fetchConversations = useCallback(async () => {
+    // Skip fetching conversations for guest users
+    if (!isAuthenticated) {
+      return;
+    }
+
     try {
       const response = await axiosInstance.get('/api/conversation/list');
       setConversationList(response.data.conversations);
     } catch (error: any) {
       console.error('Error fetching conversations:', error.message);
     }
-  }, []);
+  }, [isAuthenticated, axiosInstance]);
 
   const handleNewChat = useCallback(async () => {
+    // Skip conversation creation for guest users
+    if (!isAuthenticated) {
+      setConversationId('guest');
+      return;
+    }
+
     try {
       const response = await axiosInstance.get('/api/conversation');
       const newConversationId = response.data.conversation_id;
@@ -64,7 +80,7 @@ function ChatContent() {
     } catch (error: any) {
       console.error('Error creating new conversation:', error.message);
     }
-  }, [router]);
+  }, [router, isAuthenticated, axiosInstance]);
 
   const {
     messages,
@@ -78,14 +94,22 @@ function ChatContent() {
     setInput,
     setMessages,
   } = useChat({
-    api: conversationId ? `${backend}/api/chat?conversation_id=${conversationId}` : '',
+    api: isAuthenticated
+      ? conversationId
+        ? `${backend}/api/chat?conversation_id=${conversationId}`
+        : ''
+      : `${backend}/api/chat/guest`,  // Always use guest endpoint for unauthenticated users
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}`,
+      ...(isAuthenticated && { Authorization: `Bearer ${accessToken}` }),
     },
-    body: { conversation_id: conversationId },
+    body: isAuthenticated ? { conversation_id: conversationId } : {},
+    streamProtocol: 'text',  // Enable Vercel AI SDK text streaming protocol
     onFinish: (message) => {
-      
+      // Increment query count for guest users after successful message
+      if (!isAuthenticated) {
+        queryLimitContext.incrementCount();
+      }
     },
     onError: (error: unknown) => {
       if (!(error instanceof Error)) throw error;
@@ -120,6 +144,20 @@ function ChatContent() {
       toast(errorMessage);
     },
   });
+
+  // Custom submit handler to check query limits for guest users
+  const handleChatSubmit = useCallback((e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    // Check query limit for guest users
+    if (!isAuthenticated && !queryLimitContext.canMakeQuery) {
+      setShowSignupDialog(true);
+      return;
+    }
+
+    // Proceed with normal submission
+    handleSubmit(e);
+  }, [isAuthenticated, queryLimitContext.canMakeQuery, handleSubmit]);
 
   const updateMessageContent = useCallback((
     id: string,
@@ -180,6 +218,12 @@ function ChatContent() {
   return (
     <div className="w-full h-full flex justify-center items-center bg-primary-foreground">
       <div className="space-y-2 w-full  md:w-[90%] lg:w-[70%] h-full flex flex-col p-4">
+        {/* Query Counter for Guest Users */}
+        {!isAuthenticated && (
+          <QueryCounter
+            remainingQueries={queryLimitContext.remainingQueries}
+          />
+        )}
 
         <Suspense fallback={<Loading />}>
           <ChatMessages
@@ -195,7 +239,7 @@ function ChatContent() {
         <Suspense fallback={<Loading />}>
           <ChatInput
             input={input}
-            handleSubmit={handleSubmit}
+            handleSubmit={handleChatSubmit}
             handleInputChange={handleInputChange}
             isLoading={isLoading}
             messages={messages}
@@ -203,6 +247,13 @@ function ChatContent() {
             setInput={setInput}
           />
         </Suspense>
+
+        {/* Signup Prompt Dialog */}
+        <SignupPromptDialog
+          open={showSignupDialog}
+          onOpenChange={setShowSignupDialog}
+          queryCount={queryLimitContext.queryCount}
+        />
       </div>
     </div>
   );
