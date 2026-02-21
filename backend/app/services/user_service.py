@@ -1,3 +1,4 @@
+import os
 from typing import Optional
 from uuid import UUID
 from app.schemas.user_schema import UserAuth, UserUpdate
@@ -45,6 +46,28 @@ class UserService:
     async def get_user_by_email(self, email: str) -> Optional[User]:
         user_dict = await self.users_collection.find_one({"email": email})
         return User.from_mongo(user_dict) if user_dict else None
+
+    async def get_or_create_user_google(
+        self, email: str, first_name: Optional[str] = None, last_name: Optional[str] = None
+    ) -> User:
+        """Get user by email, or create one with a placeholder password for Google sign-in."""
+        user = await self.get_user_by_email(email=email)
+        if user:
+            return user
+        placeholder = get_password(os.urandom(32).hex())
+        user_obj = User(
+            email=email,
+            hashed_password=placeholder,
+            first_name=first_name or "",
+            last_name=last_name or "",
+            role="user",
+        )
+        user_dict = user_obj.to_mongo()
+        try:
+            await self.users_collection.insert_one(user_dict)
+            return user_obj
+        except DuplicateKeyError:
+            return await self.get_user_by_email(email=email)
 
     async def get_user_by_id(self, id: UUID) -> Optional[User]:
         user_dict = await self.users_collection.find_one(

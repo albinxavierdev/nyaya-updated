@@ -7,16 +7,10 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo import MongoClient
 from dotenv import load_dotenv
 from pymongo.errors import ServerSelectionTimeoutError
-from app.models.user_model import User
-from app.core.security import get_password
-
 load_dotenv()
 
 MONGODB_URI = os.getenv("MONGODB_URI")
-MONGODB_NAME = os.getenv("MONGODB_NAME", "NYAYANTAR")
-ADMIN_EMAIL = os.getenv("ADMIN_EMAIL")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
-ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
+MONGODB_NAME = os.getenv("MONGODB_NAME", "nyayantar")
 
 CONFIG_FILE = "rag_config.json"
 
@@ -57,21 +51,7 @@ class AsyncMongoDB:
             print("Closed MongoDB connection (Async)")
 
     async def database_init(self):
-        users_collection = self.db.users
         config_collection = self.db.config
-
-        # Create admin user if not exists
-        existing_user = await users_collection.find_one({"email": ADMIN_EMAIL})
-        if not existing_user:
-            admin_user = User(
-                first_name=ADMIN_USERNAME,
-                last_name=ADMIN_USERNAME,
-                email=ADMIN_EMAIL,
-                hashed_password=get_password(ADMIN_PASSWORD),
-                role="admin",
-            )
-            await users_collection.insert_one(admin_user.to_mongo())
-            print(f"Admin user created with email: {ADMIN_EMAIL}")
 
         # Check if config already exists
         existing_config = await config_collection.find_one({"_id": "app_config"})
@@ -132,21 +112,7 @@ class SyncMongoDB:
             print("Closed MongoDB connection (Sync)")
 
     def database_init(self):
-        users_collection = self.db.users
         config_collection = self.db.config
-
-        # Create admin user if not exists
-        existing_user = users_collection.find_one({"email": ADMIN_EMAIL})
-        if not existing_user:
-            admin_user = User(
-                first_name=ADMIN_USERNAME,
-                last_name=ADMIN_USERNAME,
-                email=ADMIN_EMAIL,
-                hashed_password=get_password(ADMIN_PASSWORD),
-                role="admin",
-            )
-            users_collection.insert_one(admin_user.to_mongo())
-            print(f"Admin user created with email: {ADMIN_EMAIL}")
 
         # Check if config already exists
         existing_config = config_collection.find_one({"_id": "app_config"})

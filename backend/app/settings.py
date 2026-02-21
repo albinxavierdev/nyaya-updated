@@ -4,188 +4,93 @@ from dotenv import load_dotenv
 
 from llama_index.core.settings import Settings
 
-# Load environment variables
 load_dotenv()
 
 
 def init_settings():
-    # Check if multi-provider mode is enabled
-    if os.getenv("ENABLE_MULTI_PROVIDER", "false").lower() == "true":
-        from .multi_provider_settings import init_multi_provider_settings
-        try:
-            init_multi_provider_settings()
-            return
-        except ValueError as e:
-            print(f"Multi-provider mode failed, falling back to single provider: {e}")
-            # Continue with single provider mode below
-    
-    # Fallback to single provider mode
-    model_provider = os.getenv("MODEL_PROVIDER", "openai")  # Default to openai
-    match model_provider:
-        case "openai":
-            init_openai()
-        case "groq":
-            init_groq()
-        case "ollama":
-            init_ollama()
-        case "anthropic":
-            init_anthropic()
-        case "gemini":
-            init_gemini()
-        case "mistral":
-            init_mistral()
-        case "azure-openai":
-            init_azure_openai()
-        case "t-systems":
-            from .llmhub import init_llmhub
+    # OpenAI = main provider; OpenRouter = fallback when OPENAI_API_KEY is not set
+    openai_key = os.getenv("OPENAI_API_KEY")
+    openrouter_key = os.getenv("OPENROUTER_API_KEY")
 
-            init_llmhub()
-        case "openrouter":
-            init_openrouter()
-        case _:
-            raise ValueError(f"Invalid model provider: {model_provider}")
+    if openai_key:
+        _init_openai()
+    elif openrouter_key:
+        _init_openrouter()
+    else:
+        raise ValueError(
+            "Set OPENAI_API_KEY (main) or OPENROUTER_API_KEY (fallback)"
+        )
 
     Settings.chunk_size = int(os.getenv("CHUNK_SIZE", "1024"))
     Settings.chunk_overlap = int(os.getenv("CHUNK_OVERLAP", "20"))
 
 
-def init_ollama():
-    from llama_index.embeddings.ollama import OllamaEmbedding
-    from llama_index.llms.ollama.base import DEFAULT_REQUEST_TIMEOUT, Ollama
-
-    base_url = os.getenv("OLLAMA_BASE_URL") or "http://127.0.0.1:11434"
-    request_timeout = float(
-        os.getenv("OLLAMA_REQUEST_TIMEOUT", DEFAULT_REQUEST_TIMEOUT)
-    )
-    Settings.embed_model = OllamaEmbedding(
-        base_url=base_url,
-        model_name=os.getenv("EMBEDDING_MODEL"),
-    )
-    Settings.llm = Ollama(
-        base_url=base_url, model=os.getenv("MODEL"), request_timeout=request_timeout
-    )
+# Canonical base URLs so env cannot override provider choice
+OPENAI_BASE_URL = "https://api.openai.com/v1"
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 
-def init_openai():
+def _init_openai():
     from llama_index.core.constants import DEFAULT_TEMPERATURE
     from llama_index.embeddings.openai import OpenAIEmbedding
     from llama_index.llms.openai import OpenAI
 
-    max_tokens = os.getenv("LLM_MAX_TOKENS")
-    config = {
-        "model": os.getenv("MODEL"),
-        "temperature": float(os.getenv("LLM_TEMPERATURE", DEFAULT_TEMPERATURE)),
-        "max_tokens": int(max_tokens) if max_tokens is not None else None,
-    }
-    Settings.llm = OpenAI(**config)
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise ValueError("Set OPENAI_API_KEY for OpenAI provider (LLM and embeddings)")
 
-    dimensions = os.getenv("EMBEDDING_DIM")
-    config = {
-        "model": os.getenv("EMBEDDING_MODEL"),
-        "dimensions": int(dimensions) if dimensions is not None else None,
-    }
-    Settings.embed_model = OpenAIEmbedding(**config)
-
-
-def init_azure_openai():
-    from llama_index.core.constants import DEFAULT_TEMPERATURE
-    from llama_index.embeddings.azure_openai import AzureOpenAIEmbedding
-    from llama_index.llms.azure_openai import AzureOpenAI
-
-    llm_deployment = os.environ["AZURE_OPENAI_LLM_DEPLOYMENT"]
-    embedding_deployment = os.environ["AZURE_OPENAI_EMBEDDING_DEPLOYMENT"]
+    model = os.getenv("MODEL", "gpt-4o-mini")
+    embed_model = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
     max_tokens = os.getenv("LLM_MAX_TOKENS")
     temperature = os.getenv("LLM_TEMPERATURE", DEFAULT_TEMPERATURE)
     dimensions = os.getenv("EMBEDDING_DIM")
 
-    azure_config = {
-        "api_key": os.environ["AZURE_OPENAI_API_KEY"],
-        "azure_endpoint": os.environ["AZURE_OPENAI_ENDPOINT"],
-        "api_version": os.getenv("AZURE_OPENAI_API_VERSION")
-        or os.getenv("OPENAI_API_VERSION"),
-    }
-
-    Settings.llm = AzureOpenAI(
-        model=os.getenv("MODEL"),
-        max_tokens=int(max_tokens) if max_tokens is not None else None,
+    Settings.llm = OpenAI(
+        model=model,
+        api_key=api_key,
+        api_base=OPENAI_BASE_URL,
         temperature=float(temperature),
-        deployment_name=llm_deployment,
-        **azure_config,
+        max_tokens=int(max_tokens) if max_tokens else None,
     )
+    embed_config = {
+        "model": embed_model,
+        "api_key": api_key,
+        "api_base": OPENAI_BASE_URL,
+    }
+    if dimensions:
+        embed_config["dimensions"] = int(dimensions)
+    Settings.embed_model = OpenAIEmbedding(**embed_config)
 
-    Settings.embed_model = AzureOpenAIEmbedding(
-        model=os.getenv("EMBEDDING_MODEL"),
-        dimensions=int(dimensions) if dimensions is not None else None,
-        deployment_name=embedding_deployment,
-        **azure_config,
+
+def _init_openrouter():
+    from llama_index.llms.openai import OpenAI
+
+    api_key = os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise ValueError("Set OPENROUTER_API_KEY or OPENAI_API_KEY for OpenRouter")
+
+    model = os.getenv("MODEL", "openai/gpt-oss-120b:free")
+    max_tokens = os.getenv("LLM_MAX_TOKENS")
+    temperature = os.getenv("LLM_TEMPERATURE", "0.7")
+
+    Settings.llm = OpenAI(
+        model=model,
+        api_key=api_key,
+        api_base=OPENROUTER_BASE_URL,
+        max_tokens=int(max_tokens) if max_tokens else None,
+        temperature=float(temperature),
     )
+    _init_fastembed()
 
 
-def init_fastembed():
-    """
-    Use Qdrant Fastembed as the local embedding provider.
-    """
+def _init_fastembed():
     from llama_index.embeddings.fastembed import FastEmbedEmbedding
 
-    embed_model_map: Dict[str, str] = {
-        # Small and multilingual
+    name = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
+    model_map: Dict[str, str] = {
         "all-MiniLM-L6-v2": "sentence-transformers/all-MiniLM-L6-v2",
-        # Large and multilingual
-        "paraphrase-multilingual-mpnet-base-v2": "sentence-transformers/paraphrase-multilingual-mpnet-base-v2",  # noqa: E501
+        "paraphrase-multilingual-mpnet-base-v2": "sentence-transformers/paraphrase-multilingual-mpnet-base-v2",
     }
-
-    # This will download the model automatically if it is not already downloaded
     Settings.embed_model = FastEmbedEmbedding(
-        model_name=embed_model_map[os.getenv("EMBEDDING_MODEL")]
+        model_name=model_map.get(name, "sentence-transformers/all-MiniLM-L6-v2")
     )
-
-
-def init_groq():
-    from llama_index.llms.groq import Groq
-
-    model_map: Dict[str, str] = {
-        "llama3-8b": "llama3-8b-8192",
-        "llama3-70b": "llama3-70b-8192",
-        "mixtral-8x7b": "mixtral-8x7b-32768",
-    }
-
-    Settings.llm = Groq(model=model_map[os.getenv("MODEL")])
-    # Groq does not provide embeddings, so we use FastEmbed instead
-    init_fastembed()
-
-
-def init_anthropic():
-    from llama_index.llms.anthropic import Anthropic
-
-    model_map: Dict[str, str] = {
-        "claude-3-opus": "claude-3-opus-20240229",
-        "claude-3-sonnet": "claude-3-sonnet-20240229",
-        "claude-3-haiku": "claude-3-haiku-20240307",
-        "claude-2.1": "claude-2.1",
-        "claude-instant-1.2": "claude-instant-1.2",
-    }
-
-    Settings.llm = Anthropic(model=model_map[os.getenv("MODEL")])
-    # Anthropic does not provide embeddings, so we use FastEmbed instead
-    init_fastembed()
-
-
-def init_gemini():
-    from llama_index.embeddings.gemini import GeminiEmbedding
-    from llama_index.llms.gemini import Gemini
-
-    model_name = f"models/{os.getenv('MODEL')}"
-    embed_model_name = f"models/{os.getenv('EMBEDDING_MODEL')}"
-
-    Settings.llm = Gemini(model=model_name)
-    Settings.embed_model = GeminiEmbedding(model_name=embed_model_name)
-
-
-def init_mistral():
-    from llama_index.embeddings.mistralai import MistralAIEmbedding
-    from llama_index.llms.mistralai import MistralAI
-
-    Settings.llm = MistralAI(model=os.getenv("MODEL"))
-    Settings.embed_model = MistralAIEmbedding(model_name=os.getenv("EMBEDDING_MODEL"))
-
-

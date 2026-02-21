@@ -33,10 +33,7 @@ class User(BaseModel):
     def create(self) -> datetime:
         return self.created_at
 
-    class Config:
-        allow_population_by_field_name = True
-        arbitrary_types_allowed = True
-        json_encoders = {UUID: str}
+    model_config = {"arbitrary_types_allowed": True, "validate_by_name": True}
 
     def to_mongo(self):
         # Convert the model to a dictionary

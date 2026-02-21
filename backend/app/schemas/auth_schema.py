@@ -25,3 +25,7 @@ class AuthErrorOut(ErrorOut):
 
 class RefreshTokenRequest(BaseModel):
     refresh_token: str
+
+
+class GoogleTokenRequest(BaseModel):
+    credential: str  # Google ID token from frontend

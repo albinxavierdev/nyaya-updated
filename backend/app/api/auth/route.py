@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Response, status, Body
 from fastapi.security import OAuth2PasswordRequestForm
 from typing import Any
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
 from app.services import user_service
 from app.core.security import create_access_token, create_refresh_token
-from app.schemas.auth_schema import TokenSchema
+from app.schemas.auth_schema import TokenSchema, GoogleTokenRequest
 from app.schemas.user_schema import UserOut
 from app.models.user_model import User
 from app.core.user import get_current_user
@@ -66,6 +68,50 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()) -> Any:
             detail="User account is disabled",
         )
 
+    return {
+        "access_token": create_access_token(user.user_id),
+        "refresh_token": create_refresh_token(user.user_id),
+    }
+
+
+@auth_router.post(
+    "/google",
+    summary="Sign in with Google (ID token)",
+    response_model=TokenSchema,
+)
+async def google_login(data: GoogleTokenRequest) -> Any:
+    if not settings.GOOGLE_CLIENT_ID:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Google sign-in is not configured (GOOGLE_CLIENT_ID missing)",
+        )
+    try:
+        idinfo = id_token.verify_oauth2_token(
+            data.credential,
+            google_requests.Request(),
+            settings.GOOGLE_CLIENT_ID,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid Google credential: {e}",
+        )
+    email = idinfo.get("email")
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Google account has no email",
+        )
+    first_name = idinfo.get("given_name") or ""
+    last_name = idinfo.get("family_name") or ""
+    user = await user_service.get_or_create_user_google(
+        email=email, first_name=first_name, last_name=last_name
+    )
+    if user.disabled:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is disabled",
+        )
     return {
         "access_token": create_access_token(user.user_id),
         "refresh_token": create_refresh_token(user.user_id),
@@ -167,16 +213,6 @@ async def refresh_token(response: Response, refresh_request: RefreshTokenRequest
 )
 async def get_me(user: User = Depends(get_current_user)):
     return user
-
-
-@auth_router.get("/verify-admin", response_model=dict)
-async def verify_admin(current_user: User = Depends(get_current_user)):
-    if not current_user.role or current_user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User is not an admin",
-        )
-    return {"isAdmin": True}
 
 
 @auth_router.post("/update", summary="Update User", response_model=UserOut)

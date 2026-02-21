@@ -1,6 +1,9 @@
+import base64
 import json
 import logging
+import os
 import re
+import uuid
 from typing import List, Dict, Any, Optional
 from fastapi import (
     APIRouter,
@@ -34,8 +37,32 @@ chat_router = r = APIRouter()
 
 logger = logging.getLogger("uvicorn")
 
+UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "output", "uploaded")
 
 
+@r.post("/upload", summary="Upload file for chat (base64)")
+async def chat_upload(
+    body: dict,
+    current_user: User = Depends(get_current_user),
+):
+    """Accept base64 file upload; save to output/uploaded; return [filename] for refs."""
+    base64_data = body.get("base64")
+    if not base64_data:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="base64 required")
+    filename = body.get("filename") or "upload"
+    try:
+        if "," in base64_data:
+            base64_data = base64_data.split(",", 1)[1]
+        raw = base64.b64decode(base64_data)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid base64: {e}")
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
+    ext = os.path.splitext(filename)[1] or ".bin"
+    safe_name = f"{uuid.uuid4().hex}{ext}"
+    path = os.path.join(UPLOAD_DIR, safe_name)
+    with open(path, "wb") as f:
+        f.write(raw)
+    return [safe_name]
 
 
 # streaming endpoint - delete if not needed
@@ -89,10 +116,11 @@ async def chat(
         logger.info(
             f"Creating chat engine with filters: {str(filters)}",
         )
-        # Pass the query to enable legal context detection
-        chat_engine = get_chat_engine(filters=filters, params=params, query=last_message_content)
-
         event_handler = EventCallbackHandler()
+        # Pass the query to enable legal context detection; pass handler so web search can emit events
+        chat_engine = get_chat_engine(
+            filters=filters, params=params, query=last_message_content, event_handler=event_handler
+        )
         chat_engine.callback_manager.handlers.append(event_handler)  # type: ignore
 
         response = await chat_engine.astream_chat(last_message_content, messages)
@@ -127,11 +155,10 @@ async def chat(
                             source_nodes = []
                     elif data_chunk["type"] == "events":
                         try:
-                            event = data_chunk[
-                                "data"
-                            ]  # might have chidlen key value pair
+                            # Accumulate so all events show (Retrieving..., Retrieved N sources, Searched web...)
+                            event.append(data_chunk["data"])
                         except Exception:
-                            event = []  # might have chidlen key value pair
+                            pass
                     elif data_chunk["type"] == "tools":
                         try:
                             tools = data_chunk["data"]

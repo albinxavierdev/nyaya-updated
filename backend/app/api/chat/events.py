@@ -91,6 +91,16 @@ class CallbackEvent(BaseModel):
             return None
 
 
+class CustomStreamEvent:
+    """Event pushed by app code (e.g. web search) so it shows in the UI events list."""
+
+    def __init__(self, title: str):
+        self.title = title
+
+    def to_response(self):
+        return {"type": "events", "data": {"title": self.title}}
+
+
 class EventCallbackHandler(BaseCallbackHandler):
     _aqueue: asyncio.Queue
     is_done: bool = False
@@ -141,7 +151,11 @@ class EventCallbackHandler(BaseCallbackHandler):
     ) -> None:
         """No-op."""
 
-    async def async_event_gen(self) -> AsyncGenerator[CallbackEvent, None]:
+    def push_custom_event(self, title: str) -> None:
+        """Push a custom event (e.g. 'Searched web for ...') so it shows in the UI events."""
+        self._aqueue.put_nowait(CustomStreamEvent(title))
+
+    async def async_event_gen(self) -> AsyncGenerator[CallbackEvent | CustomStreamEvent, None]:
         while not self._aqueue.empty() or not self.is_done:
             try:
                 yield await asyncio.wait_for(self._aqueue.get(), timeout=0.1)

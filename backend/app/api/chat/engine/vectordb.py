@@ -53,15 +53,3 @@ def get_vector_store(collection_name=None):
             client=client, aclient=aclient, collection_name=collection_name
         )
     return store
-
-
-def get_dual_vector_stores():
-    """
-    Get both legal and general Qdrant vector stores for hybrid retrieval
-    
-    Returns:
-        Tuple of (legal_store, general_store)
-    """
-    legal_store = get_vector_store("nyayantar_legal")
-    general_store = get_vector_store("nyayantar_general")
-    return legal_store, general_store

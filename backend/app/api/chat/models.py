@@ -196,8 +196,8 @@ class SourceNodes(BaseModel):
             if file_path and data_dir:
                 relative_path = os.path.relpath(file_path, data_dir)
                 return f"{url_prefix}/data/{relative_path}"
-        # fallback to URL in metadata (e.g. for websites)
-        return metadata.get("URL")
+        # fallback to URL in metadata (e.g. for websites, web search)
+        return metadata.get("URL") or metadata.get("url")
 
     @classmethod
     def from_source_nodes(cls, source_nodes: List[NodeWithScore]):

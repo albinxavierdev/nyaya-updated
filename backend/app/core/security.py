@@ -1,14 +1,8 @@
 from datetime import datetime, timedelta
-from passlib.context import CryptContext
 from typing import Union, Any
+import bcrypt
 from app.core.config import settings
 from jose import jwt
-import warnings
-
-# Suppress bcrypt version warning
-warnings.filterwarnings("ignore", message=".*trapped.*error reading bcrypt version.*")
-
-password_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def create_access_token(subject: Union[str, Any], expires_delta: int = None) -> str:
@@ -32,22 +26,18 @@ def create_refresh_token(subject: Union[str, Any], expires_delta: int = None) ->
     return encoded_jwt
 
 
+def _password_bytes(password: str) -> bytes:
+    if not isinstance(password, str):
+        password = str(password)
+    return password.encode("utf-8")[:72]
+
+
 def get_password(password: str) -> str:
-    # Truncate password to 72 bytes if needed (bcrypt limitation)
-    if len(password.encode('utf-8')) > 72:
-        password = password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
-    try:
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            return password_context.hash(password)
-    except Exception as e:
-        # If there's still an error about password length, truncate and retry
-        if "72 bytes" in str(e):
-            password_bytes = password.encode('utf-8')[:72]
-            password = password_bytes.decode('utf-8', errors='ignore')
-            return password_context.hash(password)
-        raise
+    return bcrypt.hashpw(_password_bytes(password), bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(password: str, hashed_pass: str) -> bool:
-    return password_context.verify(password, hashed_pass)
+    try:
+        return bcrypt.checkpw(_password_bytes(password), hashed_pass.encode("utf-8"))
+    except Exception:
+        return False

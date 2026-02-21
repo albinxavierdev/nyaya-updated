@@ -1,9 +1,12 @@
 # flake8: noqa: E402
+from pathlib import Path
 from dotenv import load_dotenv
 
-from app.config import DATA_DIR
+# Load .env from backend directory so Mongo/Qdrant env vars are always found
+_env_path = Path(__file__).resolve().parent / ".env"
+load_dotenv(_env_path)
 
-load_dotenv()
+from app.config import DATA_DIR
 
 import logging
 import os
@@ -13,12 +16,10 @@ import uvicorn
 
 from app.api.chat import chat_router
 from app.api.chat import config_router
-from app.api.chat import file_upload_router
 from app.api.chat import guest_router
-from app.api.chat.legal_route import legal_chat_router
 from app.api.auth import auth_router
 from app.api.conversation import conversation_router
-from app.api.admin import admin_router
+from app.api.health import health_router
 from app.observability import init_observability
 from app.settings import init_settings
 from app.db import async_mongodb, sync_mongodb
@@ -85,13 +86,11 @@ mount_static_files("output", "/api/files/output")
 app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(chat_router, prefix="/api/chat", tags=["Chat"])
 app.include_router(guest_router, prefix="/api/chat/guest", tags=["Guest Chat"])
-app.include_router(legal_chat_router, prefix="/api/legal", tags=["Legal Chat"])
 app.include_router(config_router, prefix="/api/chat/config", tags=["Chat"])
-app.include_router(file_upload_router, prefix="/api/chat/upload", tags=["Chat"])
 app.include_router(
     conversation_router, prefix="/api/conversation", tags=["Conversation"]
 )
-app.include_router(admin_router, prefix="/api/admin", tags=["Admin"])
+app.include_router(health_router, prefix="/api/health", tags=["Health"])
 
 if __name__ == "__main__":
     app_host = os.getenv("APP_HOST", "0.0.0.0")

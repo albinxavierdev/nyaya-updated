@@ -41,11 +41,11 @@ async def guest_chat(
         logger.info(
             f"Guest chat request with filters: {str(filters)}",
         )
-        
-        # Pass the query to enable legal context detection
-        chat_engine = get_chat_engine(filters=filters, params=params, query=last_message_content)
 
         event_handler = EventCallbackHandler()
+        chat_engine = get_chat_engine(
+            filters=filters, params=params, query=last_message_content, event_handler=event_handler
+        )
         chat_engine.callback_manager.handlers.append(event_handler)  # type: ignore
 
         response = await chat_engine.astream_chat(last_message_content, messages)
@@ -76,9 +76,9 @@ async def guest_chat(
                             source_nodes = []
                     elif data_chunk["type"] == "events":
                         try:
-                            event = data_chunk["data"]
+                            event.append(data_chunk["data"])
                         except Exception:
-                            event = []
+                            pass
                     elif data_chunk["type"] == "tools":
                         try:
                             tools = data_chunk["data"]
